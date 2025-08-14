@@ -1,0 +1,39 @@
+# Build artifacts
+build/
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+Makefile
+*.o
+*.so
+*.a
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Git
+.git/
+.gitignore
+
+# Documentation
+*.md
+docs/
+
+# Temporary files
+*.tmp
+*.log
+
+# Test files
+test*/
+*test*
+
+# macOS
+.DS_Store
+
+# Other
+*.bak
+*.orig
