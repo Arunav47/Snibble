@@ -72,12 +72,6 @@
 - **Required for end-to-end encryption**
 - **Returns true if upload successful**
 
-## Verify Token
-- **Verifies JWT token validity**
-- **Checks token expiration and signature**
-- **Returns true if token is valid**
-- **Used for session validation**
-
 ## Is Token Valid
 - **Checks if current stored token is still valid**
 - **Validates expiration time**

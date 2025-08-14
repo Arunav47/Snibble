@@ -19,15 +19,10 @@ pkg_check_modules(LIBSECRET REQUIRED libsecret-1)
 # Find hiredis
 pkg_check_modules(HIREDIS REQUIRED hiredis)
 
-# Find jwt-cpp (assuming it's installed via vcpkg or system)
-find_path(JWT_CPP_INCLUDE_DIR jwt-cpp/jwt.h)
-if(NOT JWT_CPP_INCLUDE_DIR)
-    message(FATAL_ERROR "jwt-cpp not found. Please install it via vcpkg or manually.")
-endif()
+# Note: jwt-cpp is no longer needed on client side - JWT verification happens server-side
 
 include_directories(${CMAKE_CURRENT_SOURCE_DIR}/src)
 include_directories(/usr/local/include/laserpants/dotenv-0.9.3)
-include_directories(${JWT_CPP_INCLUDE_DIR})
 include_directories(${LIBSECRET_INCLUDE_DIRS})
 include_directories(${JSONCPP_INCLUDE_DIRS})
 include_directories(${HIREDIS_INCLUDE_DIRS})
@@ -50,8 +45,6 @@ qt_add_executable(Snibble
         src/ui/AuthWindow.h
         src/ui/ChatWindow.cpp
         src/ui/ChatWindow.h
-        src/utils/ErrorHandler.cpp
-        src/utils/ErrorHandler.h
 )
 target_link_libraries(Snibble PRIVATE 
     Qt${QT_VERSION_MAJOR}::Widgets 

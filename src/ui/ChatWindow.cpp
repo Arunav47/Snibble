@@ -560,7 +560,8 @@ void ChatWindow::logout() {
         if (authManager && networkManager) {
             std::string username = networkManager->getUsername();
             if (!username.empty()) {
-                authManager->logout(username);
+                // Use quick logout to prevent UI blocking
+                authManager->logoutQuick(username);
             }
         }
         

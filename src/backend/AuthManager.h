@@ -18,9 +18,10 @@ static const SecretSchema snibble_schema = {
 #include <vector>
 #include <curl/curl.h>
 #include <iostream>
-#include <jwt-cpp/jwt.h>
 #include <json/json.h>
 #include <dotenv.h>
+
+// Note: jwt-cpp removed - JWT verification now happens server-side only
 
 struct WriteCallbackData {
     std::string data;
@@ -47,13 +48,15 @@ public:
     bool login(const std::string& username, const std::string& password);
     bool signup(const std::string& username, const std::string& password);
     bool logout(const std::string username);
+    void logoutQuick(const std::string username); // Fast logout for UI responsiveness
     
     std::vector<std::string> searchUsers(const std::string& query);
     
     bool uploadPublicKey(const std::string& username, const std::string& publicKey);
     
-    bool verifyToken(const std::string& token);
-    bool isTokenValid();
+    // Remove client-side JWT verification - this should only happen on server
+    bool verifyTokenWithServer(); // Server-side verification for silent login
+    bool isTokenValid(); // Check if we have a stored token and verify with server
     std::string getCurrentToken() const { return currentToken; }
     std::string getCurrentUsername() const { return currentUsername; }
     bool restoreSession();

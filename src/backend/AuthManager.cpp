@@ -13,7 +13,7 @@ size_t AuthManager::WriteCallback(void* contents, size_t size, size_t nmemb, Wri
 
 AuthManager::AuthManager(const bool& verbose, const std::string& HOST, const int& PORT)
 : verbose(verbose), HOST(HOST), PORT(PORT) {
-    dotenv::init("../.env");
+    // Note: No longer loading .env file since JWT_SECRET is not needed on client side
     curl_global_init(CURL_GLOBAL_DEFAULT);
     curl = curl_easy_init();
     if (!curl) {
@@ -46,6 +46,10 @@ bool AuthManager::login(const string& username, const string& password) {
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+        
+        // Set timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L); // 15 second timeout for login
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
         
         struct curl_slist* slist1 = NULL;
         slist1 = curl_slist_append(slist1, "Content-Type: application/json");
@@ -110,6 +114,10 @@ bool AuthManager::signup(const string& username, const string& password) {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
         
+        // Set timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L); // 15 second timeout for signup
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
+        
         struct curl_slist* slist1 = NULL;
         slist1 = curl_slist_append(slist1, "Content-Type: application/json");
         slist1 = curl_slist_append(slist1, "Accept: application/json");
@@ -143,94 +151,236 @@ bool AuthManager::signup(const string& username, const string& password) {
 
 bool AuthManager::logout(const string username) {
     try {
-        if(!curl) {
+        if (!curl) {
             throw runtime_error("CURL is not initialized.");
         }
-        if (this->verbose) {
-            cerr << "Attempting to log out user: " << username << endl;
+        if (verbose) {
+            cerr << "Starting logout process for user: " << username << endl;
         }
-        
-        clearStoredCredentials();
-        currentToken.clear();
-        currentUsername.clear();
         
         string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
         
+        WriteCallbackData response_data;
+        
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+        
+        // Set aggressive timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 5L); // 5 second total timeout
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 3L); // 3 second connection timeout
+        curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L); // Don't use signals for timeouts
+        
         struct curl_slist* slist1 = NULL;
         slist1 = curl_slist_append(slist1, "Content-Type: application/json");
         slist1 = curl_slist_append(slist1, "Accept: application/json");
-        slist1 = curl_slist_append(slist1, ("Authorization: Bearer " + currentToken).c_str());
+        
+        // Add Authorization header if we have a token (before clearing it)
+        if (!currentToken.empty()) {
+            string auth_header = "Authorization: Bearer " + currentToken;
+            slist1 = curl_slist_append(slist1, auth_header.c_str());
+            if (verbose) {
+                cerr << "Including authorization token in logout request" << endl;
+            }
+        } else {
+            if (verbose) {
+                cerr << "No token available for logout request" << endl;
+            }
+        }
+        
         curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist1);
         
         string jsonData = "{\"username\":\"" + username + "\"}";
         curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonData.c_str());
-        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
-        curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
         
+        if (verbose) {
+            cerr << "Sending logout request to: " << url << endl;
+        }
+        
+        // Attempt to send logout request to server
         CURLcode res = curl_easy_perform(curl);
         curl_slist_free_all(slist1);
         
-        return true;
-
-    } catch (const exception& e) {
-        cerr << "Logout error: " << e.what() << endl;
+        // Log the result but don't fail if server is unreachable
+        if (res == CURLE_OK) {
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            if (verbose) {
+                cerr << "Logout request completed. Server response: " << response_code << endl;
+                if (!response_data.data.empty()) {
+                    cerr << "Server response data: " << response_data.data << endl;
+                }
+            }
+        } else {
+            if (verbose) {
+                cerr << "Logout request failed: " << curl_easy_strerror(res) << endl;
+                cerr << "This is not critical - proceeding with local cleanup..." << endl;
+            }
+        }
+        
+        if (verbose) {
+            cerr << "Starting local credential cleanup..." << endl;
+        }
+        
+        // Always clear local credentials regardless of server response
         clearStoredCredentials();
         currentToken.clear();
         currentUsername.clear();
+        
+        if (verbose) {
+            cerr << "Logout process completed successfully" << endl;
+        }
+        
+        return true; // Always return true since local cleanup is most important
+
+    } catch (const exception& e) {
+        cerr << "Logout error: " << e.what() << endl;
+        // Still clear local credentials even if server call fails
+        if (verbose) {
+            cerr << "Exception occurred, performing emergency cleanup..." << endl;
+        }
+        clearStoredCredentials();
+        currentToken.clear();
+        currentUsername.clear();
+        if (verbose) {
+            cerr << "Emergency cleanup completed" << endl;
+        }
         return true;
     }
 }
 
+void AuthManager::logoutQuick(const string username) {
+    // Fast logout that prioritizes local cleanup over server notification
+    if (verbose) {
+        cerr << "Quick logout for user: " << username << endl;
+    }
+    
+    // Immediately clear local credentials
+    clearStoredCredentials();
+    currentToken.clear();
+    currentUsername.clear();
+    
+    // Attempt server notification in background (non-blocking)
+    if (curl) {
+        try {
+            string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
+            
+            curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL); // Don't care about response
+            curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
+            
+            // Very aggressive timeouts for quick response
+            curl_easy_setopt(curl, CURLOPT_TIMEOUT, 2L); // 2 second total timeout
+            curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 1L); // 1 second connection timeout
+            curl_easy_setopt(curl, CURLOPT_NOSIGNAL, 1L);
+            
+            struct curl_slist* slist1 = NULL;
+            slist1 = curl_slist_append(slist1, "Content-Type: application/json");
+            curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist1);
+            
+            string jsonData = "{\"username\":\"" + username + "\"}";
+            curl_easy_setopt(curl, CURLOPT_POSTFIELDS, jsonData.c_str());
+            
+            // Fire and forget - don't wait for response
+            curl_easy_perform(curl);
+            curl_slist_free_all(slist1);
+            
+            if (verbose) {
+                cerr << "Logout notification sent to server (fire-and-forget)" << endl;
+            }
+        } catch (...) {
+            // Ignore any errors - local cleanup is what matters
+            if (verbose) {
+                cerr << "Server notification failed, but local cleanup completed" << endl;
+            }
+        }
+    }
+    
+    if (verbose) {
+        cerr << "Quick logout completed" << endl;
+    }
+}
 
-bool AuthManager::verifyToken(const string& token) {
-    if(token.empty()) {
+
+bool AuthManager::verifyTokenWithServer() {
+    if (currentToken.empty()) {
         return false;
     }
+    
     try {
-        auto decoded = jwt::decode(token);
-
-        const string JWT_SECRET = dotenv::getenv("JWT_SECRET", "your-super-secret-key-change-this-in-production");
+        if (!curl) {
+            throw runtime_error("CURL is not initialized.");
+        }
         
-        auto verifier = jwt::verify()
-            .allow_algorithm(jwt::algorithm::hs256{JWT_SECRET})
-            .with_type("JWT")
-            .with_issuer("snibble-auth")
-            .leeway(60UL);
-
-        verifier.verify(decoded);
-        auto now = std::chrono::system_clock::now();
-        auto exp = decoded.get_expires_at();
-        if(exp < now) {
-            if(verbose) {
-                cerr << "Token has expired" << endl;
-            }
-            return false;
-        }
-        if(decoded.has_payload_claim("username")) {
-            string tokenUsername = decoded.get_payload_claim("username").as_string();
-            if(tokenUsername != currentUsername and !currentUsername.empty()) {
-                if(verbose) {
-                    cerr << "Token username mismatch" << endl;
-                }
-                return false;
-            }
-        }
-        if(verbose) {
-            cerr << "Token verification successful" << endl;
-        }
-        return true;
-    } catch(const jwt::error::signature_verification_exception& e) {
-        if(verbose) {
-            cerr << "Token signature verification failed: " << e.what() << endl;
-        }
-        return false;
-    } catch(const jwt::error::token_verification_exception& e) {
         if (verbose) {
-            cerr << "Token verification failed: " << e.what() << endl;
+            cerr << "Verifying token with server..." << endl;
         }
+        
+        string url = "http://" + HOST + ":" + to_string(PORT) + "/verify-token";
+        
+        WriteCallbackData response_data;
+        
+        curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
+        curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
+        curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+        
+        // Set timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // 10 second timeout
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
+        
+        // Set headers with Authorization Bearer token
+        struct curl_slist* slist1 = NULL;
+        slist1 = curl_slist_append(slist1, "Content-Type: application/json");
+        slist1 = curl_slist_append(slist1, "Accept: application/json");
+        string auth_header = "Authorization: Bearer " + currentToken;
+        slist1 = curl_slist_append(slist1, auth_header.c_str());
+        curl_easy_setopt(curl, CURLOPT_HTTPHEADER, slist1);
+        
+        // Use POST method
+        curl_easy_setopt(curl, CURLOPT_POSTFIELDS, "{}"); // Empty JSON body
+        
+        CURLcode res = curl_easy_perform(curl);
+        
+        if (res == CURLE_OK) {
+            long response_code;
+            curl_easy_getinfo(curl, CURLINFO_RESPONSE_CODE, &response_code);
+            
+            if (response_code == 200) {
+                // Parse response to get username
+                Json::Value json_response;
+                Json::Reader reader;
+                
+                if (reader.parse(response_data.data, json_response)) {
+                    if (json_response.isMember("valid") && json_response["valid"].asBool()) {
+                        if (json_response.isMember("username")) {
+                            string serverUsername = json_response["username"].asString();
+                            // Update username if it differs (shouldn't happen normally)
+                            if (currentUsername.empty()) {
+                                currentUsername = serverUsername;
+                            }
+                        }
+                        if (verbose) {
+                            cerr << "Token verification successful" << endl;
+                        }
+                        curl_slist_free_all(slist1);
+                        return true;
+                    }
+                }
+            } else if (response_code == 401) {
+                if (verbose) {
+                    cerr << "Token verification failed: " << response_data.data << endl;
+                }
+            }
+        } else {
+            if (verbose) {
+                cerr << "Token verification request failed: " << curl_easy_strerror(res) << endl;
+            }
+        }
+        
+        curl_slist_free_all(slist1);
         return false;
-    } catch (const std::exception& e) {
+        
+    } catch (const exception& e) {
         if (verbose) {
             cerr << "Token verification error: " << e.what() << endl;
         }
@@ -240,7 +390,7 @@ bool AuthManager::verifyToken(const string& token) {
 
 
 bool AuthManager::isTokenValid() {
-    return verifyToken(currentToken);
+    return verifyTokenWithServer();
 }
 
 
@@ -342,14 +492,14 @@ bool AuthManager::storeCredentialsSecurely(const string& username, const string&
 
 
 bool AuthManager::restoreSession() {
-    if(loadCredentialsFromStorage()) {
-        if (isTokenValid()) {
-            if(verbose) {
-                cerr << "Session restored successful for user: " << currentUsername << endl;
+    if (loadCredentialsFromStorage()) {
+        if (isTokenValid()) { // This now calls verifyTokenWithServer()
+            if (verbose) {
+                cerr << "Session restored successfully for user: " << currentUsername << endl;
             }
             return true;
         } else {
-            if(verbose) {
+            if (verbose) {
                 cerr << "Stored token is invalid, clearing credentials" << endl;
             }
             clearStoredCredentials();
@@ -426,6 +576,11 @@ std::vector<std::string> AuthManager::searchUsers(const std::string& query) {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
         curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
+        
+        // Set timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // 10 second timeout for search
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
+        
         struct curl_slist* slist1 = NULL;
         if (!currentToken.empty()) {
             string auth_header = "Authorization: Bearer " + currentToken;
@@ -500,6 +655,10 @@ bool AuthManager::uploadPublicKey(const string& username, const string& publicKe
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
+        
+        // Set timeouts to prevent hanging
+        curl_easy_setopt(curl, CURLOPT_TIMEOUT, 15L); // 15 second timeout for upload
+        curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
         
         struct curl_slist* slist1 = NULL;
         slist1 = curl_slist_append(slist1, "Content-Type: application/json");
