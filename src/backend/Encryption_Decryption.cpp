@@ -63,12 +63,18 @@ bool EncryptionDecryption::loadMyKeys() {
                 cerr << "Error loading private key: " << error->message << endl;
                 g_error_free(error);
             }
+            if (debugMode) {
+                cout << "key_pem is empty" << endl;
+            }
             return false;
         }
 
         BIO* bio = BIO_new_mem_buf(key_pem, -1);
         if (!bio) {
             g_free(key_pem);
+            if (debugMode) {
+                cout << "bio is empty" << endl;
+            }
             return false;
         }
 
@@ -77,7 +83,9 @@ bool EncryptionDecryption::loadMyKeys() {
         g_free(key_pem);
 
         if (!pkey) {
-            cerr << "Failed to parse private key from PEM" << endl;
+            if (debugMode) {
+                cerr << "Failed to parse private key from PEM" << endl;
+            }
             return false;
         }
 
@@ -85,7 +93,9 @@ bool EncryptionDecryption::loadMyKeys() {
         return true;
     }
     catch (const exception& e) {
-        cerr << "Exception in loadMyKeys: " << e.what() << endl;
+        if (debugMode) {
+            cerr << "Exception in loadMyKeys: " << e.what() << endl;
+        }
         return false;
     }
 }
@@ -95,7 +105,9 @@ bool EncryptionDecryption::fetchPublicKey(const std::string& recipient) {
     try {
         CURL* curl = curl_easy_init();
         if (!curl) {
-            cerr << "Failed to initialize CURL." << endl;
+            if (debugMode) {
+                cerr << "Failed to initialize CURL." << endl;
+            }
             return false;
         }
 
@@ -117,7 +129,9 @@ bool EncryptionDecryption::fetchPublicKey(const std::string& recipient) {
         curl_easy_cleanup(curl);
 
         if (res != CURLE_OK) {
-            cerr << "CURL request failed: " << curl_easy_strerror(res) << endl;
+            if (debugMode) {
+                cerr << "CURL request failed: " << curl_easy_strerror(res) << endl;
+            }
             return false;
         }
 
@@ -126,20 +140,26 @@ bool EncryptionDecryption::fetchPublicKey(const std::string& recipient) {
         BIO_free(bio);
 
         if (!pubkey) {
-            cerr << "Failed to parse public key for user: " << recipient << endl;
+            if (debugMode) {
+                cerr << "Failed to parse public key for user: " << recipient << endl;
+            }
             return false;
         }
 
         userPublicKeys[recipient] = pubkey;
         if (debugMode) {
-            cout << "Successfully fetched and cached public key for: " << recipient << endl;
+            if (debugMode) {
+                cout << "Successfully fetched and cached public key for: " << recipient << endl;
+            }
         }
 
         return true;
     }
     catch (const exception& e) {
         if (debugMode) {
-            cerr << "Exception in fetchPublicKey: " << e.what() << endl;
+            if (debugMode) {
+                cerr << "Exception in fetchPublicKey: " << e.what() << endl;
+            }
         }
         return false;
     }
@@ -147,11 +167,14 @@ bool EncryptionDecryption::fetchPublicKey(const std::string& recipient) {
 
 
 void EncryptionDecryption::saveMyKeys() {
+
     try {
         BIO* bio_priv = BIO_new(BIO_s_mem());
         if (!PEM_write_bio_PrivateKey(bio_priv, keypair, NULL, NULL, 0, NULL, NULL)) {
             BIO_free(bio_priv);
-            cerr << "Error writing private key to PEM" << endl;
+            if (debugMode) {
+                cerr << "Error writing private key to PEM" << endl;
+            }
             return;
         }
 
@@ -174,15 +197,21 @@ void EncryptionDecryption::saveMyKeys() {
         );
 
         if (error) {
-            cerr << "Error saving private key: " << error->message << endl;
+            if (debugMode) {
+                cerr << "Error saving private key: " << error->message << endl;
+            }
             g_error_free(error);
         } else {
-            cerr << "Private key saved locally." << endl;
+            if (debugMode) {
+                cerr << "Private key saved locally." << endl;
+            }
         }
         BIO* bio_pub = BIO_new(BIO_s_mem());
         if (!PEM_write_bio_PUBKEY(bio_pub, keypair)) {
             BIO_free(bio_pub);
-            cerr << "Error writing public key to PEM" << endl;
+            if (debugMode) {
+                cerr << "Error writing public key to PEM" << endl;
+            }
             return;
         }
 

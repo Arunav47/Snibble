@@ -250,23 +250,19 @@ bool AuthManager::logout(const string username) {
 }
 
 void AuthManager::logoutQuick(const string username) {
-    // Fast logout that prioritizes local cleanup over server notification
     if (verbose) {
         cerr << "Quick logout for user: " << username << endl;
     }
     
-    // Immediately clear local credentials
     clearStoredCredentials();
     currentToken.clear();
     currentUsername.clear();
-    
-    // Attempt server notification in background (non-blocking)
     if (curl) {
         try {
             string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
             
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
-            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL); // Don't care about response
+            curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
             curl_easy_setopt(curl, CURLOPT_WRITEDATA, NULL);
             
             // Very aggressive timeouts for quick response
@@ -324,11 +320,10 @@ bool AuthManager::verifyTokenWithServer() {
         curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, WriteCallback);
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
         
-        // Set timeouts to prevent hanging
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // 10 second timeout
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
         
-        // Set headers with Authorization Bearer token
+
         struct curl_slist* slist1 = NULL;
         slist1 = curl_slist_append(slist1, "Content-Type: application/json");
         slist1 = curl_slist_append(slist1, "Accept: application/json");
@@ -577,7 +572,6 @@ std::vector<std::string> AuthManager::searchUsers(const std::string& query) {
         curl_easy_setopt(curl, CURLOPT_WRITEDATA, &response_data);
         curl_easy_setopt(curl, CURLOPT_HTTPGET, 1L);
         
-        // Set timeouts to prevent hanging
         curl_easy_setopt(curl, CURLOPT_TIMEOUT, 10L); // 10 second timeout for search
         curl_easy_setopt(curl, CURLOPT_CONNECTTIMEOUT, 5L); // 5 second connection timeout
         

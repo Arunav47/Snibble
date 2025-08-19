@@ -7,11 +7,11 @@
 
 class EncryptionDecryption {
 private:
+    bool debugMode = true;
     std::string AUTH_HOST;
     int AUTH_PORT;
     EVP_PKEY* keypair = nullptr;
     std::unordered_map<std::string, EVP_PKEY*> userPublicKeys; // Cache for user public keys
-    bool debugMode = false;
     bool loadMyKeys();
     bool fetchPublicKey(const std::string& recipient);
     void saveMyKeys();
