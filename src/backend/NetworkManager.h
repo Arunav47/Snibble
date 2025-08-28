@@ -57,6 +57,7 @@ public:
     void requestContactedUsersFromServer();
     void requestChatHistoryFromServer(const std::string& otherUser);
     void processServerMessage(const std::string& message);
+    void handleInitialOnlineUsers(const std::string& usersList);
 
 };
 

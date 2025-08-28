@@ -39,8 +39,8 @@ bool AuthManager::login(const string& username, const string& password) {
         if (this->verbose) {
             cerr << "Attempting to log in user: " << username << endl;
         }
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/login";
-        
+        string url = HOST + "/login";
+
         WriteCallbackData response_data;
         
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -106,8 +106,8 @@ bool AuthManager::signup(const string& username, const string& password) {
         if (this->verbose) {
             cerr << "Attempting to sign up user: " << username << endl;
         }
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/signup";
-        
+        // string url = "http://" + HOST + ":" + to_string(PORT) + "/signup";
+        string url = HOST + "/signup";        
         WriteCallbackData response_data;
         
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -158,7 +158,8 @@ bool AuthManager::logout(const string username) {
             cerr << "Starting logout process for user: " << username << endl;
         }
         
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
+        // string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
+        string url = HOST + "/logout";
         
         WriteCallbackData response_data;
         
@@ -259,7 +260,8 @@ void AuthManager::logoutQuick(const string username) {
     currentUsername.clear();
     if (curl) {
         try {
-            string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
+            // string url = "http://" + HOST + ":" + to_string(PORT) + "/logout";
+            string url = HOST + "/logout";
             
             curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
             curl_easy_setopt(curl, CURLOPT_WRITEFUNCTION, NULL);
@@ -311,9 +313,9 @@ bool AuthManager::verifyTokenWithServer() {
         if (verbose) {
             cerr << "Verifying token with server..." << endl;
         }
-        
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/verify-token";
-        
+
+        string url = HOST + "/verify-token";
+        // string url = "http://" + HOST + ":" + to_string(PORT) + "/verify-token"; --- IGNORE ---
         WriteCallbackData response_data;
         
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -563,8 +565,9 @@ std::vector<std::string> AuthManager::searchUsers(const std::string& query) {
             cerr << "Searching for users with query: " << query << endl;
         }
         
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/search?q=" + query;
-        
+        // string url = "http://" + HOST + ":" + to_string(PORT) + "/search?q=" + query;
+
+        string url = HOST + "/search?q=" + query;
         WriteCallbackData response_data;
         
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());
@@ -642,8 +645,8 @@ bool AuthManager::uploadPublicKey(const string& username, const string& publicKe
             cout << "Uploading public key for user: " << username << endl;
         }
         
-        string url = "http://" + HOST + ":" + to_string(PORT) + "/store_public_key";
-        
+        // string url = "http://" + HOST + ":" + to_string(PORT) + "/store_public_key";
+        string url = HOST + "/store_public_key";        
         WriteCallbackData response_data;
         
         curl_easy_setopt(curl, CURLOPT_URL, url.c_str());

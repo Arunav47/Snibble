@@ -76,6 +76,13 @@ set_target_properties(Snibble PROPERTIES
     WIN32_EXECUTABLE TRUE
 )
 
+# Copy assets directory to the build directory
+add_custom_command(TARGET Snibble POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_CURRENT_SOURCE_DIR}/src/assets $<TARGET_FILE_DIR:Snibble>/assets
+    COMMENT "Copying assets to build directory"
+)
+
 include(GNUInstallDirs)
 install(TARGETS Snibble
     BUNDLE DESTINATION .
